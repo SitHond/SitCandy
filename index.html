@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Candybox-style Adventure</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #0f0;
+            font-family: monospace;
+            text-align: center;
+            padding: 20px;
+            overflow: hidden;
+            line-height: 1.4;
+        }
+        #game-container {
+            display: inline-block;
+            text-align: left;
+            max-width: 600px;
+        }
+        #cross {
+            margin: 20px 0;
+            line-height: 1;
+            letter-spacing: 3px;
+        }
+        #inventory {
+            border-top: 1px dashed #0f0;
+            margin-top: 20px;
+            padding-top: 10px;
+        }
+        .event {
+            color: #ff0;
+            margin: 10px 0;
+        }
+        .action {
+            color: #0ff;
+            cursor: pointer;
+            text-decoration: underline;
+            margin: 5px 0;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="output"></div>
+        <div id="cross"></div>
+        <div id="inventory"></div>
+        <div id="actions"></div>
+    </div>
+
+    <script>
+        // Game state
+        const game = {
+            level: 1,
+            candy: 10,
+            health: 100,
+            maxHealth: 100,
+            xp: 0,
+            xpToNext: 100,
+            inventory: [],
+            events: [],
+            crossSize: 7,
+            gameActive: true,
+            eventTypes: [
+                { name: "Candy rain", text: "It's raining candy from the sky!", effect: () => { game.candy += Math.floor(Math.random() * 10) + 5; } },
+                { name: "Health fountain", text: "You found a magical health fountain!", effect: () => { game.health = Math.min(game.maxHealth, game.health + 30); } },
+                { name: "Monster", text: "A wild monster appears!", effect: monsterEncounter },
+                { name: "Treasure", text: "You discovered an ancient treasure chest!", effect: findTreasure },
+                { name: "Mystery", text: "Something strange is happening...", effect: mysteryEvent }
+            ]
+        };
+
+        // DOM elements
+        const outputEl = document.getElementById('output');
+        const crossEl = document.getElementById('cross');
+        const inventoryEl = document.getElementById('inventory');
+        const actionsEl = document.getElementById('actions');
+
+        // Initialize game
+        function init() {
+            updateGame();
+            generateCross();
+            setInterval(gameLoop, 3000);
+            setInterval(generateCross, 800);
+        }
+
+        // Main game loop
+        function gameLoop() {
+            if (!game.gameActive) return;
+            
+            // Random event
+            if (Math.random() < 0.6) {
+                triggerRandomEvent();
+            }
+            
+            // Passive candy gain
+            game.candy += Math.floor(game.level / 2) + 1;
+            
+            updateGame();
+        }
+
+        // Generate ASCII cross
+        function generateCross() {
+            let cross = '';
+            const size = game.crossSize;
+            const center = Math.floor(size / 2);
+            
+            for (let y = 0; y < size; y++) {
+                let line = '';
+                for (let x = 0; x < size; x++) {
+                    if (x === center || y === center || 
+                        (x === y && (x < center - 1 || x > center + 1)) || 
+                        (x + y === size - 1 && (x < center - 1 || x > center + 1))) {
+                        line += ['@', '#', '+', '*'][Math.floor(Math.random() * 4)];
+                    } else if (Math.random() < 0.07) {
+                        line += ['.', '\'', '`', ','][Math.floor(Math.random() * 4)];
+                    } else {
+                        line += ' ';
+                    }
+                }
+                cross += line + '<br>';
+            }
+            
+            crossEl.innerHTML = cross;
+        }
+
+        // Trigger random event
+        function triggerRandomEvent() {
+            const eventType = game.eventTypes[Math.floor(Math.random() * game.eventTypes.length)];
+            addEvent(eventType.text);
+            eventType.effect();
+        }
+
+        // Event effects
+        function monsterEncounter() {
+            const monsterHP = game.level * 15;
+            const damage = Math.floor(Math.random() * 15) + 5;
+            
+            addEvent(`Monster HP: ${monsterHP}. You deal ${damage} damage!`);
+            game.health -= Math.floor(Math.random() * 10);
+            
+            if (game.health <= 0) {
+                addEvent("You were defeated! Game over.");
+                game.gameActive = false;
+            } else {
+                const xpGain = Math.floor(monsterHP / 3);
+                game.xp += xpGain;
+                addEvent(`Gained ${xpGain} XP!`);
+                checkLevelUp();
+            }
+        }
+
+        function findTreasure() {
+            const items = ["Golden Cross", "Sacred Candy", "Health Potion", "Mysterious Artifact"];
+            const foundItem = items[Math.floor(Math.random() * items.length)];
+            game.inventory.push(foundItem);
+            addEvent(`Found: ${foundItem}!`);
+        }
+
+        function mysteryEvent() {
+            const outcomes = [
+                () => { game.crossSize = Math.max(5, game.crossSize + (Math.random() > 0.5 ? 2 : -2)); },
+                () => { game.health -= 10; addEvent("You feel strange..."); },
+                () => { game.candy *= 2; addEvent("Your candy doubled magically!"); }
+            ];
+            outcomes[Math.floor(Math.random() * outcomes.length)]();
+        }
+
+        // Level progression
+        function checkLevelUp() {
+            if (game.xp >= game.xpToNext) {
+                game.level++;
+                game.xp -= game.xpToNext;
+                game.xpToNext = Math.floor(game.xpToNext * 1.5);
+                game.maxHealth += 20;
+                game.health = game.maxHealth;
+                addEvent(`LEVEL UP! Now level ${game.level}. Health increased!`);
+                
+                if (game.level % 3 === 0) {
+                    game.crossSize += 2;
+                    addEvent("Your cross grows larger!");
+                }
+            }
+        }
+
+        // UI actions
+        function addAction(text, callback) {
+            const action = document.createElement('div');
+            action.className = 'action';
+            action.textContent = text;
+            action.onclick = callback;
+            actionsEl.appendChild(action);
+        }
+
+        function clearActions() {
+            actionsEl.innerHTML = '';
+        }
+
+        // Add game event to log
+        function addEvent(text) {
+            const eventEl = document.createElement('div');
+            eventEl.className = 'event';
+            eventEl.textContent = `[Lvl ${game.level}] ${text}`;
+            outputEl.appendChild(eventEl);
+            outputEl.scrollTop = outputEl.scrollHeight;
+            
+            // Keep only last 10 events
+            if (outputEl.children.length > 10) {
+                outputEl.removeChild(outputEl.children[0]);
+            }
+        }
+
+        // Update game display
+        function updateGame() {
+            inventoryEl.innerHTML = `
+                <strong>Inventory:</strong> ${game.inventory.join(', ')}<br>
+                Candy: ${game.candy} | Health: ${game.health}/${game.maxHealth}<br>
+                XP: ${game.xp}/${game.xpToNext} | Level: ${game.level}
+            `;
+            
+            clearActions();
+            addAction("Eat candy (+5HP)", () => {
+                if (game.candy >= 3) {
+                    game.candy -= 3;
+                    game.health = Math.min(game.maxHealth, game.health + 5);
+                    addEvent("Ate candy. Health +5!");
+                    updateGame();
+                }
+            });
+            
+            addAction("Meditate (+XP)", () => {
+                const xpGain = Math.floor(Math.random() * 10) + 5;
+                game.xp += xpGain;
+                addEvent(`Meditated. Gained ${xpGain} XP!`);
+                checkLevelUp();
+                updateGame();
+            });
+            
+            if (!game.gameActive) {
+                addAction("Restart Game", () => {
+                    document.location.reload();
+                });
+            }
+        }
+
+        // Start the game
+        init();
+    </script>
+</body>
+</html>
